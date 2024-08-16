@@ -12,63 +12,76 @@ class UserController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth:api')->except(['login', 'register']);
-    }
-
-    public function register(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['error' => $validator->errors()], 400);
-        }
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'avatar' => $request->avatar
-        ]);
-
-        $token = JWTAuth::fromUser($user);
-
-        return response()->json(compact('user', 'token'));
-    }
-
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
-
-        if (!$token = JWTAuth::attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        return response()->json(compact('token'));
+        $this->middleware('auth:api');
     }
 
     public function index()
     {
+        // Mengembalikan semua data pengguna dalam format JSON
         return response()->json(User::all());
     }
 
-    public function show(User $user)
+    public function show($id)
     {
+        // Mencari pengguna berdasarkan ID
+        $user = User::find($id);
+
+        // Jika pengguna tidak ditemukan, kembalikan respons 404
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+        
+        // Kembalikan data pengguna dalam format JSON
         return response()->json($user);
     }
 
-    public function update(Request $request, User $user)
+    public function update(Request $request, $id)
     {
+        // Mencari pengguna berdasarkan ID
+        $user = User::find($id);
+
+        // Jika pengguna tidak ditemukan, kembalikan respons 404
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        // Validasi data yang diinput
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'sometimes|string|min:6|confirmed',
+        ]);
+
+        // Jika validasi gagal, kembalikan pesan kesalahan
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->errors()], 400);
+        }
+
+        // Perbarui data pengguna
+        if ($request->has('password')) {
+            $request->merge(['password' => Hash::make($request->password)]);
+        }
+
         $user->update($request->all());
+
+        // Kembalikan data pengguna yang diperbarui dalam format JSON
         return response()->json($user);
     }
 
-    public function destroy(User $user)
+    public function destroy($id)
     {
+        // Mencari pengguna berdasarkan ID
+        $user = User::find($id);
+
+        // Jika pengguna tidak ditemukan, kembalikan respons 404
+        if (!$user) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        // Hapus pengguna
         $user->delete();
-        return response()->json(['message' => 'User deleted']);
+
+        // Kembalikan pesan sukses
+        return response()->json(['message' => 'User deleted successfully']);
     }
 }
